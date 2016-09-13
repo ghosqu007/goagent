@@ -96,6 +96,7 @@ import OpenSSL
 
 NetWorkIOError = (socket.error, ssl.SSLError, OpenSSL.SSL.Error, OSError)
 
+
 class Logging(type(sys)):
     CRITICAL = 50
     FATAL = CRITICAL
@@ -171,8 +172,9 @@ class Logging(type(sys)):
         self.__set_error_color()
         self.log('CRITICAL', fmt, *args, **kwargs)
         self.__reset_color()
-logging = sys.modules['logging'] = Logging('logging')
 
+
+logging = sys.modules['logging'] = Logging('logging')
 
 from proxylib import AuthFilter
 from proxylib import AutoRangeFilter
@@ -225,9 +227,9 @@ class RangeFetch(object):
     """Range Fetch Class"""
 
     threads = 2
-    maxsize = 1024*1024*4
+    maxsize = 1024 * 1024 * 4
     bufsize = 8192
-    waitsize = 1024*512
+    waitsize = 1024 * 512
 
     def __init__(self, handler, plugin, response, fetchservers, **kwargs):
         assert isinstance(plugin, BaseFetchPlugin) and hasattr(plugin, 'fetch')
@@ -245,7 +247,7 @@ class RangeFetch(object):
         response_status = self.response.status
         response_headers = dict((k.title(), v) for k, v in self.response.getheaders())
         content_range = response_headers['Content-Range']
-        #content_length = response_headers['Content-Length']
+        # content_length = response_headers['Content-Length']
         start, end, length = tuple(int(x) for x in re.search(r'bytes (\d+)-(\d+)/(\d+)', content_range).group(1, 2, 3))
         if start == 0:
             response_status = 200
@@ -253,7 +255,7 @@ class RangeFetch(object):
             del response_headers['Content-Range']
         else:
             response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, end, length)
-            response_headers['Content-Length'] = str(length-start)
+            response_headers['Content-Length'] = str(length - start)
 
         logging.info('>>>>>>>>>>>>>>> RangeFetch started(%r) %d-%d', self.url, start, end)
         self.handler.send_response(response_status)
@@ -265,11 +267,11 @@ class RangeFetch(object):
         range_queue = Queue.PriorityQueue()
         range_queue.put((start, end, self.response))
         self.expect_begin = start
-        for begin in range(end+1, length, self.maxsize):
-            range_queue.put((begin, min(begin+self.maxsize-1, length-1), None))
+        for begin in range(end + 1, length, self.maxsize):
+            range_queue.put((begin, min(begin + self.maxsize - 1, length - 1), None))
         for i in xrange(0, self.threads):
             range_delay_size = i * self.maxsize
-            spawn_later(float(range_delay_size)/self.waitsize, self.__fetchlet, range_queue, data_queue, range_delay_size)
+            spawn_later(float(range_delay_size) / self.waitsize, self.__fetchlet, range_queue, data_queue, range_delay_size)
         has_peek = hasattr(data_queue, 'peek')
         peek_timeout = 120
         while self.expect_begin < length - 1:
@@ -316,7 +318,7 @@ class RangeFetch(object):
                     return
                 try:
                     start, end, response = range_queue.get(timeout=1)
-                    if self.expect_begin < start and data_queue.qsize() * self.bufsize + range_delay_size > 30*1024*1024:
+                    if self.expect_begin < start and data_queue.qsize() * self.bufsize + range_delay_size > 30 * 1024 * 1024:
                         range_queue.put((start, end, response))
                         time.sleep(10)
                         continue
@@ -365,7 +367,7 @@ class RangeFetch(object):
                                 response.close()
                                 return
                             data = None
-                            with gevent.Timeout(max(1, self.bufsize//8192), False):
+                            with gevent.Timeout(max(1, self.bufsize // 8192), False):
                                 data = response.read(self.bufsize)
                             if not data:
                                 break
@@ -515,12 +517,12 @@ class GAEFetchPlugin(BaseFetchPlugin):
         payload += ''.join('X-URLFETCH-%s: %s\r\n' % (k, v) for k, v in kwargs.items() if v)
         # prepare GAE request
         request_method = 'POST'
-        fetchserver_index = random.randint(0, len(self.appids)-1) if 'Range' in headers else 0
+        fetchserver_index = random.randint(0, len(self.appids) - 1) if 'Range' in headers else 0
         fetchserver = kwargs.get('fetchserver') or '%s://%s.appspot.com%s' % (self.mode, self.appids[fetchserver_index], self.path)
         request_headers = {}
         if common.GAE_OBFUSCATE:
             request_method = 'GET'
-            fetchserver += 'ps/%d%s.gif' % (int(time.time()*1000), random.random())
+            fetchserver += 'ps/%d%s.gif' % (int(time.time() * 1000), random.random())
             request_headers['X-URLFETCH-PS1'] = base64.b64encode(deflate(payload)).strip()
             if body:
                 request_headers['X-URLFETCH-PS2'] = base64.b64encode(deflate(body)).strip()
@@ -537,7 +539,7 @@ class GAEFetchPlugin(BaseFetchPlugin):
         # post data
         need_crlf = 0 if common.GAE_MODE == 'https' else 1
         need_validate = common.GAE_VALIDATE
-        cache_key = '%s:%d' % (handler.net2.host_postfix_map.get('.appspot.com',''), 443 if common.GAE_MODE == 'https' else 80)
+        cache_key = '%s:%d' % (handler.net2.host_postfix_map.get('.appspot.com', ''), 443 if common.GAE_MODE == 'https' else 80)
         headfirst = bool(common.GAE_HEADFIRST)
         response = handler.net2.create_http_request(request_method, fetchserver, request_headers, body, timeout, crlf=need_crlf, validate=need_validate, cache_key=cache_key, headfirst=headfirst)
         response.app_status = response.status
@@ -598,7 +600,7 @@ class PHPFetchPlugin(BaseFetchPlugin):
         payload = deflate(payload)
         body = '%s%s%s' % ((struct.pack('!h', len(payload)), payload, body))
         request_headers = {'Content-Length': len(body), 'Content-Type': 'application/octet-stream'}
-        fetchserver_index = 0 if 'Range' not in headers else random.randint(0, len(self.fetchservers)-1)
+        fetchserver_index = 0 if 'Range' not in headers else random.randint(0, len(self.fetchservers) - 1)
         fetchserver = '%s?%s' % (self.fetchservers[fetchserver_index], random.random())
         crlf = 0
         cache_key = '%s//:%s' % urlparse.urlsplit(fetchserver)[:2]
@@ -690,7 +692,7 @@ class VPSServer(gevent.server.StreamServer):
         request_data = '%s\r\nProxy-Authorization: Baisic %s\r\n%s' % (request_line, base64.b64encode('%s:%s' % (username, password)).strip(), header_data)
         remote.sendall(request_data)
         try:
-            self.forward_socket(sock, remote, 60, bufsize=256*1024)
+            self.forward_socket(sock, remote, 60, bufsize=256 * 1024)
         except (socket.error, ssl.SSLError, OpenSSL.SSL.Error) as e:
             if e.args[0] not in (errno.ECONNABORTED, errno.ECONNRESET, errno.ENOTCONN, errno.EPIPE):
                 raise
@@ -700,8 +702,9 @@ class VPSServer(gevent.server.StreamServer):
 
 class GAEFetchFilter(BaseProxyHandlerFilter):
     """gae fetch filter"""
-    #https://github.com/AppScale/gae_sdk/blob/master/google/appengine/api/taskqueue/taskqueue.py#L241
+    # https://github.com/AppScale/gae_sdk/blob/master/google/appengine/api/taskqueue/taskqueue.py#L241
     MAX_URL_LENGTH = 2083
+
     def filter(self, handler):
         """https://developers.google.com/appengine/docs/python/urlfetch/"""
         if handler.command == 'CONNECT':
@@ -727,6 +730,7 @@ class GAEFetchFilter(BaseProxyHandlerFilter):
 
 class WithGAEFilter(BaseProxyHandlerFilter):
     """withgae/withphp filter"""
+
     def __init__(self, withgae_sites, withphp_sites):
         self.withgae_sites = set(x for x in withgae_sites if not x.startswith('.'))
         self.withgae_sites_postfix = tuple(x for x in withgae_sites if x.startswith('.'))
@@ -754,9 +758,7 @@ class WithGAEFilter(BaseProxyHandlerFilter):
 class GAEProxyHandler(SimpleProxyHandler):
     """GAE Proxy Handler"""
     handler_filters = [GAEFetchFilter()]
-    handler_plugins = {'direct': DirectFetchPlugin(),
-                       'mock': MockFetchPlugin(),
-                       'strip': StripPlugin(),}
+    handler_plugins = {'direct': DirectFetchPlugin(), 'mock': MockFetchPlugin(), 'strip': StripPlugin(), }
 
     def __init__(self, *args, **kwargs):
         SimpleProxyHandler.__init__(self, *args, **kwargs)
@@ -789,6 +791,7 @@ class GAEProxyHandler(SimpleProxyHandler):
         hosts = [x for x in common.CONFIG.get('iplist', iplist_name).split('|') if not re.match(r'^\d+\.\d+\.\d+\.\d+$', x) and ':' not in x]
         logging.info('extend_iplist start for hosts=%s', hosts)
         new_iplist = []
+
         def do_remote_resolve(host, dnsserver, queue):
             assert isinstance(dnsserver, basestring)
             for dnslib_resolve in (dnslib_resolve_over_udp, dnslib_resolve_over_tcp):
@@ -799,6 +802,7 @@ class GAEProxyHandler(SimpleProxyHandler):
                 except (socket.error, OSError) as e:
                     logging.info('%s remote host=%r failed: %s', str(dnslib_resolve).split()[1], host, e)
                     time.sleep(1)
+
         result_queue = Queue.Queue()
         pool = __import__('gevent.pool', fromlist=['.']).Pool(8) if sys.modules.get('gevent') else None
         for host in hosts:
@@ -820,12 +824,13 @@ class GAEProxyHandler(SimpleProxyHandler):
                 new_iplist += iplist
             except Queue.Empty:
                 break
-        logging.info('extend_iplist finished, added %s', len(set(self.net2.iplist_alias[iplist_name])-set(new_iplist)))
+        logging.info('extend_iplist finished, added %s', len(set(self.net2.iplist_alias[iplist_name]) - set(new_iplist)))
         self.net2.add_iplist_alias(iplist_name, new_iplist)
 
 
 class PHPFetchFilter(BaseProxyHandlerFilter):
     """php fetch filter"""
+
     def filter(self, handler):
         if handler.net2.getaliasbyname(handler.path):
             return 'direct', {}
@@ -838,9 +843,7 @@ class PHPFetchFilter(BaseProxyHandlerFilter):
 class PHPProxyHandler(SimpleProxyHandler):
     """PHP Proxy Handler"""
     handler_filters = [PHPFetchFilter()]
-    handler_plugins = {'direct': DirectFetchPlugin(),
-                       'mock': MockFetchPlugin(),
-                       'strip': StripPlugin(),}
+    handler_plugins = {'direct': DirectFetchPlugin(), 'mock': MockFetchPlugin(), 'strip': StripPlugin(), }
 
     def __init__(self, *args, **kwargs):
         SimpleProxyHandler.__init__(self, *args, **kwargs)
@@ -887,7 +890,7 @@ class PacUtil(object):
             content = fp.read()
         try:
             placeholder = '// AUTO-GENERATED RULES, DO NOT MODIFY!'
-            content = content[:content.index(placeholder)+len(placeholder)]
+            content = content[:content.index(placeholder) + len(placeholder)]
             content = re.sub(r'''blackhole\s*=\s*['"]PROXY [\.\w:]+['"]''', 'blackhole = \'PROXY %s\'' % blackhole, content)
             content = re.sub(r'''autoproxy\s*=\s*['"]PROXY [\.\w:]+['"]''', 'autoproxy = \'PROXY %s\'' % autoproxy, content)
             content = re.sub(r'''defaultproxy\s*=\s*['"](DIRECT|PROXY [\.\w:]+)['"]''', 'defaultproxy = \'%s\'' % default, content)
@@ -976,7 +979,7 @@ class PacUtil(object):
                     jsLines.append(jsLine)
                 else:
                     jsLines.insert(0, jsLine)
-        function = 'function %s(url, host) {\r\n%s\r\n%sreturn "%s";\r\n}' % (func_name, '\n'.join(jsLines), ' '*indent, default)
+        function = 'function %s(url, host) {\r\n%s\r\n%sreturn "%s";\r\n}' % (func_name, '\n'.join(jsLines), ' ' * indent, default)
         return function
 
     @staticmethod
@@ -1020,7 +1023,7 @@ class PacUtil(object):
                 else:
                     direct_domain_set.add(domain)
         proxy_domain_list = sorted(set(x.lstrip('.') for x in proxy_domain_set))
-        autoproxy_host = ',\r\n'.join('%s"%s": 1' % (' '*indent, x) for x in proxy_domain_list)
+        autoproxy_host = ',\r\n'.join('%s"%s": 1' % (' ' * indent, x) for x in proxy_domain_list)
         template = '''\
                     var autoproxy_host = {
                     %(autoproxy_host)s
@@ -1037,10 +1040,7 @@ class PacUtil(object):
                         return '%(default)s';
                     }'''
         template = re.sub(r'(?m)^\s{%d}' % min(len(re.search(r' +', x).group()) for x in template.splitlines()), '', template)
-        template_args = {'autoproxy_host': autoproxy_host,
-                         'func_name': func_name,
-                         'proxy': proxy,
-                         'default': default}
+        template_args = {'autoproxy_host': autoproxy_host, 'func_name': func_name, 'proxy': proxy, 'default': default}
         return template % template_args
 
     @staticmethod
@@ -1063,7 +1063,7 @@ class PacUtil(object):
                     jsLines.append(jsLine)
                 else:
                     jsLines.insert(0, jsLine)
-        function = 'function %s(url, host) {\r\n%s\r\n%sreturn "%s";\r\n}' % (func_name, '\n'.join(jsLines), ' '*indent, default)
+        function = 'function %s(url, host) {\r\n%s\r\n%sreturn "%s";\r\n}' % (func_name, '\n'.join(jsLines), ' ' * indent, default)
         return function
 
     @staticmethod
@@ -1148,8 +1148,7 @@ class PacUtil(object):
         templates = ['''\
                     function %(func_name)s(url, host) {
                         return '%(default)s';
-                    }''',
-                    '''\
+                    }''', '''\
                     var blackhole_host = {
                     %(blackhole_host)s
                     };
@@ -1159,8 +1158,7 @@ class PacUtil(object):
                             return 'PROXY %(proxy)s';
                         }
                         return '%(default)s';
-                    }''',
-                    '''\
+                    }''', '''\
                     var blackhole_host = {
                     %(blackhole_host)s
                     };
@@ -1178,8 +1176,7 @@ class PacUtil(object):
                             }
                         }
                         return '%(default)s';
-                    }''',
-                    '''\
+                    }''', '''\
                     var blackhole_host = {
                     %(blackhole_host)s
                     };
@@ -1207,12 +1204,7 @@ class PacUtil(object):
                         return '%(default)s';
                     }''']
         template = re.sub(r'(?m)^\s{%d}' % min(len(re.search(r' +', x).group()) for x in templates[admode].splitlines()), '', templates[admode])
-        template_kwargs = {'blackhole_host': ',\r\n'.join("%s'%s': 1" % (' '*indent, x) for x in sorted(black_conditions['host'])),
-                           'blackhole_url_indexOf': ',\r\n'.join("%s'%s'" % (' '*indent, x) for x in sorted(black_conditions['url.indexOf'])),
-                           'blackhole_shExpMatch': ',\r\n'.join("%s'%s'" % (' '*indent, x) for x in sorted(black_conditions['shExpMatch'])),
-                           'func_name': func_name,
-                           'proxy': proxy,
-                           'default': default}
+        template_kwargs = {'blackhole_host': ',\r\n'.join("%s'%s': 1" % (' ' * indent, x) for x in sorted(black_conditions['host'])), 'blackhole_url_indexOf': ',\r\n'.join("%s'%s'" % (' ' * indent, x) for x in sorted(black_conditions['url.indexOf'])), 'blackhole_shExpMatch': ',\r\n'.join("%s'%s'" % (' ' * indent, x) for x in sorted(black_conditions['shExpMatch'])), 'func_name': func_name, 'proxy': proxy, 'default': default}
         return template % template_kwargs
 
 
@@ -1266,7 +1258,7 @@ class Common(object):
         """load config from proxy.ini"""
         ConfigParser.RawConfigParser.OPTCRE = re.compile(r'(?P<option>\S+)\s+(?P<vi>[=])\s+(?P<value>.*)$')
         self.CONFIG = ConfigParser.ConfigParser()
-        self.CONFIG_FILENAME = os.path.splitext(os.path.abspath(__file__))[0]+'.ini'
+        self.CONFIG_FILENAME = os.path.splitext(os.path.abspath(__file__))[0] + '.ini'
         self.CONFIG_USER_FILENAME = re.sub(r'\.ini$', '.user.ini', self.CONFIG_FILENAME)
         self.CONFIG.read([self.CONFIG_FILENAME, self.CONFIG_USER_FILENAME])
 
@@ -1333,14 +1325,7 @@ class Common(object):
             if rule.startswith(('file://', 'http://', 'https://')) or '$1' in rule:
                 urlrewrite_map[pattern] = rule
                 continue
-            for rule, sites in [('withgae', withgae_sites),
-                                ('withphp', withphp_sites),
-                                ('crlf', crlf_sites),
-                                ('nocrlf', nocrlf_sites),
-                                ('forcehttps', forcehttps_sites),
-                                ('noforcehttps', noforcehttps_sites),
-                                ('fakehttps', fakehttps_sites),
-                                ('nofakehttps', nofakehttps_sites)]:
+            for rule, sites in [('withgae', withgae_sites), ('withphp', withphp_sites), ('crlf', crlf_sites), ('nocrlf', nocrlf_sites), ('forcehttps', forcehttps_sites), ('noforcehttps', noforcehttps_sites), ('fakehttps', fakehttps_sites), ('nofakehttps', nofakehttps_sites)]:
                 if rule in rules:
                     sites.append(pattern)
                     rules.remove(rule)
@@ -1448,6 +1433,7 @@ class Common(object):
                 except (socket.error, OSError) as e:
                     logging.warning('socket.getaddrinfo host=%r failed: %s', host, e)
                     time.sleep(0.1)
+
         google_blacklist = ['216.239.32.20'] + list(self.DNS_BLACKLIST)
         google_blacklist_prefix = tuple(x for x in self.DNS_BLACKLIST if x.endswith('.'))
         for name, need_resolve_hosts in list(self.IPLIST_ALIAS.items()):
@@ -1516,13 +1502,14 @@ class Common(object):
         info += '------------------------------------------------------\n'
         return info
 
+
 common = Common()
 
 
 def pre_start():
     if sys.platform == 'cygwin':
         logging.info('cygwin is not officially supported, please continue at your own risk :)')
-        #sys.exit(-1)
+        # sys.exit(-1)
     elif os.name == 'posix':
         try:
             import resource
@@ -1538,10 +1525,9 @@ def pre_start():
             ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 1)
         if common.LOVE_ENABLE and random.randint(1, 100) <= 5:
             title = ctypes.create_unicode_buffer(1024)
-            ctypes.windll.kernel32.GetConsoleTitleW(ctypes.byref(title), len(title)-1)
+            ctypes.windll.kernel32.GetConsoleTitleW(ctypes.byref(title), len(title) - 1)
             ctypes.windll.kernel32.SetConsoleTitleW('%s %s' % (title.value, random.choice(common.LOVE_TIP)))
-        blacklist = {'360safe': False,
-                     'QQProtect': False, }
+        blacklist = {'360safe': False, 'QQProtect': False, }
         softwares = [k for k, v in blacklist.items() if v]
         if softwares:
             tasklist = '\n'.join(x.name for x in get_process_list()).lower()
@@ -1550,7 +1536,7 @@ def pre_start():
                 title = u'GoAgent 建议'
                 error = u'某些安全软件(如 %s)可能和本软件存在冲突，造成 CPU 占用过高。\n如有此现象建议暂时退出此安全软件来继续运行GoAgent' % ','.join(softwares)
                 ctypes.windll.user32.MessageBoxW(None, error, title, 0)
-                #sys.exit(0)
+                # sys.exit(0)
     if os.path.isfile('/proc/cpuinfo'):
         with open('/proc/cpuinfo', 'rb') as fp:
             m = re.search(r'(?im)(BogoMIPS|cpu MHz)\s+:\s+([\d\.]+)', fp.read())
@@ -1666,6 +1652,7 @@ def main():
         gae_server.serve_forever()
     else:
         gevent.sleep(sys.maxint)
+
 
 if __name__ == '__main__':
     main()

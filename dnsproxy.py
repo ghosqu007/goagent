@@ -13,6 +13,7 @@ import gevent
 import gevent.server
 import gevent.timeout
 import gevent.monkey
+
 gevent.monkey.patch_all(subprocess=True)
 
 import re
@@ -28,7 +29,6 @@ import dnslib
 import Queue
 import pygeoip
 
-
 is_local_addr = re.compile(r'(?i)(?:[0-9a-f:]+0:5efe:)?(?:127(?:\.\d+){3}|10(?:\.\d+){3}|192\.168(?:\.\d+){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d+){2})').match
 
 
@@ -39,7 +39,7 @@ def get_dnsserver_list():
         buf = ctypes.create_string_buffer(2048)
         ctypes.windll.dnsapi.DnsQueryConfig(DNS_CONFIG_DNS_SERVER_LIST, 0, None, None, ctypes.byref(buf), ctypes.byref(ctypes.wintypes.DWORD(len(buf))))
         ipcount = struct.unpack('I', buf[0:4])[0]
-        iplist = [socket.inet_ntoa(buf[i:i+4]) for i in xrange(4, ipcount*4+4, 4)]
+        iplist = [socket.inet_ntoa(buf[i:i + 4]) for i in xrange(4, ipcount * 4 + 4, 4)]
         return iplist
     elif os.path.isfile('/etc/resolv.conf'):
         with open('/etc/resolv.conf', 'rb') as fp:
@@ -59,6 +59,7 @@ def parse_hostport(host, default_port=80):
 
 class ExpireCache(object):
     """ A dictionary-like object, supporting expire semantics."""
+
     def __init__(self, max_size=1024):
         self.__maxsize = max_size
         self.__values = {}
@@ -113,7 +114,7 @@ class ExpireCache(object):
         v = self.__values
         size = self.__maxsize
         heappop = heapq.heappop
-        #Delete expired, ticky
+        # Delete expired, ticky
         while eh and eh[0][0] <= t or len(v) > size:
             _, key = heappop(eh)
             del v[key], ets[key]
@@ -189,6 +190,7 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
     if not isinstance(query, (basestring, dnslib.DNSRecord)):
         raise TypeError('query argument requires string/DNSRecord')
     blacklist = kwargs.get('blacklist', ())
+
     def do_resolve(query, dnsserver, timeout, queobj):
         if isinstance(query, basestring):
             qtype = dnslib.QTYPE.AAAA if ':' in dnsserver else dnslib.QTYPE.A
@@ -221,6 +223,7 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
             if rfile:
                 rfile.close()
             sock.close()
+
     queobj = Queue.Queue()
     for dnsserver in dnsservers:
         thread.start_new_thread(do_resolve, (query, dnsserver, timeout, queobj))
@@ -275,7 +278,7 @@ class DNSServer(gevent.server.DatagramServer):
         dnsservers = self.dns_servers
         if qname.endswith('.in-addr.arpa'):
             ipaddr = '.'.join(reversed(qname[:-13].split('.')))
-            record = dnslib.DNSRecord(header=dnslib.DNSHeader(id=request.header.id, qr=1,aa=1,ra=1), a=dnslib.RR(qname, rdata=dnslib.A(ipaddr)))
+            record = dnslib.DNSRecord(header=dnslib.DNSHeader(id=request.header.id, qr=1, aa=1, ra=1), a=dnslib.RR(qname, rdata=dnslib.A(ipaddr)))
             return record
         if 'USERDNSDOMAIN' in os.environ:
             user_dnsdomain = '.' + os.environ['USERDNSDOMAIN'].lower()

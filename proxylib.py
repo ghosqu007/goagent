@@ -36,12 +36,11 @@ import urlparse
 import OpenSSL
 import dnslib
 
-
 gevent = sys.modules.get('gevent') or logging.warn('please enable gevent.')
-
 
 # Re-add sslwrap to Python 2.7.9
 import inspect
+
 __ssl__ = __import__('ssl')
 
 try:
@@ -63,14 +62,16 @@ def new_sslwrap(sock, server_side=False, keyfile=None, certfile=None, cert_reqs=
     caller_self = inspect.currentframe().f_back.f_locals['self']
     return context._wrap_socket(sock, server_side=server_side, ssl_sock=caller_self)
 
+
 if not hasattr(_ssl, 'sslwrap'):
     _ssl.sslwrap = new_sslwrap
-
 
 try:
     from Crypto.Cipher.ARC4 import new as RC4Cipher
 except ImportError:
     logging.warn('Load Crypto.Cipher.ARC4 Failed, Use Pure Python Instead.')
+
+
     class RC4Cipher(object):
         def __init__(self, key):
             x = 0
@@ -81,6 +82,7 @@ except ImportError:
             self.__box = box
             self.__x = 0
             self.__y = 0
+
         def encrypt(self, data):
             out = []
             out_append = out.append
@@ -99,6 +101,7 @@ except ImportError:
 
 class XORCipher(object):
     """XOR Cipher Class"""
+
     def __init__(self, key):
         self.__key_gen = itertools.cycle([ord(x) for x in key]).next
         self.__key_xor = lambda s: ''.join(chr(ord(x) ^ self.__key_gen()) for x in s)
@@ -116,6 +119,7 @@ class XORCipher(object):
 
 class CipherFileObject(object):
     """fileobj wrapper for cipher"""
+
     def __init__(self, fileobj, cipher):
         self.__fileobj = fileobj
         self.__cipher = cipher
@@ -130,6 +134,7 @@ class CipherFileObject(object):
 
 class CipherSocket(object):
     """socket wrapper for cipher"""
+
     def __init__(self, sock, cipher):
         self.__sock = fileobj
         self.__cipher = cipher
@@ -248,12 +253,12 @@ class CertUtility(object):
         if commonname[0] == '.':
             subj.commonName = '*' + commonname
             subj.organizationName = '*' + commonname
-            sans = ['*'+commonname] + [x for x in sans if x != '*'+commonname]
+            sans = ['*' + commonname] + [x for x in sans if x != '*' + commonname]
         else:
             subj.commonName = commonname
             subj.organizationName = commonname
             sans = [commonname] + [x for x in sans if x != commonname]
-        #req.add_extensions([OpenSSL.crypto.X509Extension(b'subjectAltName', True, ', '.join('DNS: %s' % x for x in sans)).encode()])
+        # req.add_extensions([OpenSSL.crypto.X509Extension(b'subjectAltName', True, ', '.join('DNS: %s' % x for x in sans)).encode()])
         req.set_pubkey(pkey)
         req.sign(pkey, self.ca_digest)
 
@@ -262,17 +267,17 @@ class CertUtility(object):
         try:
             cert.set_serial_number(self.get_cert_serial_number(commonname))
         except OpenSSL.SSL.Error:
-            cert.set_serial_number(int(time.time()*1000))
-        cert.gmtime_adj_notBefore(-600) #avoid crt time error warning
+            cert.set_serial_number(int(time.time() * 1000))
+        cert.gmtime_adj_notBefore(-600)  # avoid crt time error warning
         cert.gmtime_adj_notAfter(60 * 60 * 24 * 3652)
         cert.set_issuer(ca.get_subject())
         cert.set_subject(req.get_subject())
         cert.set_pubkey(req.get_pubkey())
         if commonname[0] == '.':
-            sans = ['*'+commonname] + [s for s in sans if s != '*'+commonname]
+            sans = ['*' + commonname] + [s for s in sans if s != '*' + commonname]
         else:
             sans = [commonname] + [s for s in sans if s != commonname]
-        #cert.add_extensions([OpenSSL.crypto.X509Extension(b'subjectAltName', True, ', '.join('DNS: %s' % x for x in sans))])
+        # cert.add_extensions([OpenSSL.crypto.X509Extension(b'subjectAltName', True, ', '.join('DNS: %s' % x for x in sans))])
         cert.sign(key, self.ca_digest)
 
         certfile = os.path.join(self.ca_certdir, commonname + '.crt')
@@ -283,7 +288,7 @@ class CertUtility(object):
 
     def get_cert(self, commonname, sans=()):
         if commonname.count('.') >= 2 and [len(x) for x in reversed(commonname.split('.'))] > [2, 4]:
-            commonname = '.'+commonname.partition('.')[-1]
+            commonname = '.' + commonname.partition('.')[-1]
         certfile = os.path.join(self.ca_certdir, commonname + '.crt')
         if os.path.exists(certfile):
             return certfile
@@ -304,7 +309,7 @@ class CertUtility(object):
                 if certdata.startswith(b'-----'):
                     begin = b'-----BEGIN CERTIFICATE-----'
                     end = b'-----END CERTIFICATE-----'
-                    certdata = base64.b64decode(b''.join(certdata[certdata.find(begin)+len(begin):certdata.find(end)].strip().splitlines()))
+                    certdata = base64.b64decode(b''.join(certdata[certdata.find(begin) + len(begin):certdata.find(end)].strip().splitlines()))
                 crypt32 = ctypes.WinDLL(b'crypt32.dll'.decode())
                 store_handle = crypt32.CertOpenStore(10, 0, 0, 0x4000 | 0x20000, b'ROOT'.decode())
                 if not store_handle:
@@ -312,8 +317,10 @@ class CertUtility(object):
                 CERT_FIND_SUBJECT_STR = 0x00080007
                 CERT_FIND_HASH = 0x10000
                 X509_ASN_ENCODING = 0x00000001
+
                 class CRYPT_HASH_BLOB(ctypes.Structure):
                     _fields_ = [('cbData', ctypes.c_ulong), ('pbData', ctypes.c_char_p)]
+
                 assert self.ca_thumbprint
                 crypt_hash = CRYPT_HASH_BLOB(20, binascii.a2b_hex(self.ca_thumbprint.replace(':', '')))
                 crypt_handle = crypt32.CertFindCertificateInStore(store_handle, X509_ASN_ENCODING, 0, CERT_FIND_HASH, ctypes.byref(crypt_hash), None)
@@ -344,19 +351,15 @@ class CertUtility(object):
         import ctypes
         import ctypes.wintypes
         class CERT_CONTEXT(ctypes.Structure):
-            _fields_ = [
-                ('dwCertEncodingType', ctypes.wintypes.DWORD),
-                ('pbCertEncoded', ctypes.POINTER(ctypes.wintypes.BYTE)),
-                ('cbCertEncoded', ctypes.wintypes.DWORD),
-                ('pCertInfo', ctypes.c_void_p),
-                ('hCertStore', ctypes.c_void_p),]
+            _fields_ = [('dwCertEncodingType', ctypes.wintypes.DWORD), ('pbCertEncoded', ctypes.POINTER(ctypes.wintypes.BYTE)), ('cbCertEncoded', ctypes.wintypes.DWORD), ('pCertInfo', ctypes.c_void_p), ('hCertStore', ctypes.c_void_p), ]
+
         crypt32 = ctypes.WinDLL(b'crypt32.dll'.decode())
         store_handle = crypt32.CertOpenStore(10, 0, 0, 0x4000 | 0x20000, b'ROOT'.decode())
         pCertCtx = crypt32.CertEnumCertificatesInStore(store_handle, None)
         while pCertCtx:
             certCtx = CERT_CONTEXT.from_address(pCertCtx)
             certdata = ctypes.string_at(certCtx.pbCertEncoded, certCtx.cbCertEncoded)
-            cert =  OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_ASN1, certdata)
+            cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_ASN1, certdata)
             if hasattr(cert, 'get_subject'):
                 cert = cert.get_subject()
             cert_name = next((v for k, v in cert.get_components() if k == 'CN'), '')
@@ -366,12 +369,12 @@ class CertUtility(object):
         return 0
 
     def check_ca(self):
-        #Check CA exists
+        # Check CA exists
         capath = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.ca_keyfile)
         certdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.ca_certdir)
         if not os.path.exists(capath):
             if os.path.exists(certdir):
-                any(os.remove(x) for x in glob.glob(certdir+'/*.crt')+glob.glob(certdir+'/.*.crt'))
+                any(os.remove(x) for x in glob.glob(certdir + '/*.crt') + glob.glob(certdir + '/.*.crt'))
             if os.name == 'nt':
                 try:
                     self.remove_ca(self.ca_vendor)
@@ -380,8 +383,8 @@ class CertUtility(object):
             self.dump_ca()
         with open(capath, 'rb') as fp:
             self.ca_thumbprint = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, fp.read()).digest(self.ca_digest)
-        #Check Certs
-        certfiles = glob.glob(certdir+'/*.crt')+glob.glob(certdir+'/.*.crt')
+        # Check Certs
+        certfiles = glob.glob(certdir + '/*.crt') + glob.glob(certdir + '/.*.crt')
         if certfiles:
             filename = random.choice(certfiles)
             commonname = os.path.splitext(os.path.basename(filename))[0]
@@ -389,12 +392,13 @@ class CertUtility(object):
                 serial_number = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, fp.read()).get_serial_number()
             if serial_number != self.get_cert_serial_number(commonname):
                 any(os.remove(x) for x in certfiles)
-        #Check CA imported
+        # Check CA imported
         if self.import_ca(capath) != 0:
             logging.warning('install root certificate failed, Please run as administrator/root/sudo')
-        #Check Certs Dir
+        # Check Certs Dir
         if not os.path.exists(certdir):
             os.makedirs(certdir)
+
 
 CertUtil = CertUtility('GoAgent', 'CA.crt', 'certs')
 
@@ -510,15 +514,15 @@ def openssl_set_session_cache_mode(context, mode):
         SESS_CACHE_CLIENT = 0x1
         SESS_CACHE_SERVER = 0x2
         SESS_CACHE_BOTH = 0x3
-        c_mode = {'off':SESS_CACHE_OFF, 'client':SESS_CACHE_CLIENT, 'server':SESS_CACHE_SERVER, 'both':SESS_CACHE_BOTH}[mode.lower()]
+        c_mode = {'off': SESS_CACHE_OFF, 'client': SESS_CACHE_CLIENT, 'server': SESS_CACHE_SERVER, 'both': SESS_CACHE_BOTH}[mode.lower()]
         if hasattr(context, 'set_session_cache_mode'):
             context.set_session_cache_mode(c_mode)
         elif OpenSSL.__version__ == '0.13':
             # http://bazaar.launchpad.net/~exarkun/pyopenssl/release-0.13/view/head:/OpenSSL/ssl/context.h#L27
-            c_context = ctypes.c_void_p.from_address(id(context)+ctypes.sizeof(ctypes.c_int)+ctypes.sizeof(ctypes.c_voidp))
+            c_context = ctypes.c_void_p.from_address(id(context) + ctypes.sizeof(ctypes.c_int) + ctypes.sizeof(ctypes.c_voidp))
             if os.name == 'nt':
                 # https://github.com/openssl/openssl/blob/92c78463720f71e47c251ffa58493e32cd793e13/ssl/ssl.h#L884
-                ctypes.c_int.from_address(c_context.value+ctypes.sizeof(ctypes.c_voidp)*7+ctypes.sizeof(ctypes.c_ulong)).value = c_mode
+                ctypes.c_int.from_address(c_context.value + ctypes.sizeof(ctypes.c_voidp) * 7 + ctypes.sizeof(ctypes.c_ulong)).value = c_mode
             else:
                 import ctypes.util
                 # FIXME
@@ -674,6 +678,7 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
         raise TypeError('query argument requires string/DNSRecord')
     blacklist = kwargs.get('blacklist', ())
     blacklist_prefix = tuple(x for x in blacklist if x.endswith('.'))
+
     def do_resolve(query, dnsserver, timeout, queobj):
         if isinstance(query, basestring):
             qtype = dnslib.QTYPE.AAAA if ':' in dnsserver else dnslib.QTYPE.A
@@ -706,6 +711,7 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
             if rfile:
                 rfile.close()
             sock.close()
+
     queobj = Queue.Queue()
     for dnsserver in dnsservers:
         thread.start_new_thread(do_resolve, (query, dnsserver, timeout, queobj))
@@ -736,7 +742,7 @@ def get_dnsserver_list():
         buf = ctypes.create_string_buffer(2048)
         ctypes.windll.dnsapi.DnsQueryConfig(DNS_CONFIG_DNS_SERVER_LIST, 0, None, None, ctypes.byref(buf), ctypes.byref(ctypes.wintypes.DWORD(len(buf))))
         ipcount = struct.unpack('I', buf[0:4])[0]
-        iplist = [socket.inet_ntoa(buf[i:i+4]) for i in xrange(4, ipcount*4+4, 4)]
+        iplist = [socket.inet_ntoa(buf[i:i + 4]) for i in xrange(4, ipcount * 4 + 4, 4)]
         return iplist
     elif os.path.isfile('/etc/resolv.conf'):
         with open('/etc/resolv.conf', 'rb') as fp:
@@ -750,6 +756,7 @@ def spawn_later(seconds, target, *args, **kwargs):
     def wrap(*args, **kwargs):
         time.sleep(seconds)
         return target(*args, **kwargs)
+
     return thread.start_new_thread(wrap, args, kwargs)
 
 
@@ -774,7 +781,7 @@ def extract_sni_name(packet):
         session_id_length = ord(stream.read(1))
         stream.read(session_id_length)
         cipher_suites_length, = struct.unpack('>h', stream.read(2))
-        stream.read(cipher_suites_length+2)
+        stream.read(cipher_suites_length + 2)
         extensions_length, = struct.unpack('>h', stream.read(2))
         # extensions = {}
         while True:
@@ -788,8 +795,9 @@ def extract_sni_name(packet):
                 server_name = edata[5:]
                 return server_name
 
+
 def random_hostname():
-    word = ''.join(random.choice(('bcdfghjklmnpqrstvwxyz', 'aeiou')[x&1]) for x in xrange(random.randint(5, 10)))
+    word = ''.join(random.choice(('bcdfghjklmnpqrstvwxyz', 'aeiou')[x & 1]) for x in xrange(random.randint(5, 10)))
     gltd = random.choice(['org', 'com', 'net', 'gov', 'cn'])
     return 'www.%s.%s' % (word, gltd)
 
@@ -824,7 +832,7 @@ def get_uptime():
             mins = int(m.group(1))
         return days * 86400 + hours * 3600 + mins * 60
     else:
-        #TODO: support other platforms
+        # TODO: support other platforms
         return None
 
 
@@ -839,7 +847,7 @@ def get_process_list():
         cb = ctypes.sizeof(lpidProcess)
         cbNeeded = ctypes.c_ulong()
         ctypes.windll.psapi.EnumProcesses(ctypes.byref(lpidProcess), cb, ctypes.byref(cbNeeded))
-        nReturned = cbNeeded.value/ctypes.sizeof(ctypes.c_ulong())
+        nReturned = cbNeeded.value / ctypes.sizeof(ctypes.c_ulong())
         pidProcess = [i for i in lpidProcess][:nReturned]
         has_queryimage = hasattr(ctypes.windll.kernel32, 'QueryFullProcessImageNameA')
         for pid in pidProcess:
@@ -949,6 +957,7 @@ class LocalProxyServer(SocketServer.ThreadingTCPServer):
 
 class BaseFetchPlugin(object):
     """abstract fetch plugin"""
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -958,6 +967,7 @@ class BaseFetchPlugin(object):
 
 class MockFetchPlugin(BaseFetchPlugin):
     """mock fetch plugin"""
+
     def handle(self, handler, status=400, headers={}, body=''):
         """mock response"""
         logging.info('%s "MOCK %s %s %s" %d %d', handler.address_string(), handler.command, handler.path, handler.protocol_version, status, len(body))
@@ -1033,13 +1043,14 @@ class StripPlugin(BaseFetchPlugin):
             if e.args[0] not in (errno.ECONNABORTED, errno.ETIMEDOUT, errno.EPIPE):
                 raise
 
+
 class StripPluginEx(StripPlugin):
     """strip fetch plugin"""
 
     def __init__(self, ssl_version='SSLv23', ciphers='ALL:!aNULL:!eNULL', cache_size=128, session_cache=True):
         self.ssl_method = getattr(OpenSSL.SSL, '%s_METHOD' % ssl_version)
         self.ciphers = ciphers
-        self.ssl_context_cache = LRUCache(cache_size*2)
+        self.ssl_context_cache = LRUCache(cache_size * 2)
         self.ssl_session_cache = session_cache
 
     def get_ssl_context_by_hostname(self, hostname):
@@ -1167,23 +1178,26 @@ class DirectFetchPlugin(BaseFetchPlugin):
         if hasattr(remote, 'fileno'):
             # reset timeout default to avoid long http upload failure, but it will delay timeout retry :(
             remote.settimeout(None)
-        forward_socket(local, remote, 60, bufsize=256*1024)
+        forward_socket(local, remote, 60, bufsize=256 * 1024)
 
 
 class BaseProxyHandlerFilter(object):
     """base proxy handler filter"""
+
     def filter(self, handler):
         raise NotImplementedError
 
 
 class SimpleProxyHandlerFilter(BaseProxyHandlerFilter):
     """simple proxy handler filter"""
+
     def filter(self, handler):
         return 'direct', {}
 
 
 class MIMTProxyHandlerFilter(BaseProxyHandlerFilter):
     """mimt proxy handler filter"""
+
     def filter(self, handler):
         if handler.command == 'CONNECT':
             return 'strip', {}
@@ -1193,7 +1207,7 @@ class MIMTProxyHandlerFilter(BaseProxyHandlerFilter):
 
 class DirectRegionFilter(BaseProxyHandlerFilter):
     """direct region filter"""
-    region_cache = LRUCache(16*1024)
+    region_cache = LRUCache(16 * 1024)
 
     def __init__(self, regions):
         self.regions = set(regions)
@@ -1257,15 +1271,13 @@ class AuthFilter(BaseProxyHandlerFilter):
         if auth_header and self.check_auth_header(auth_header):
             handler.auth_header = auth_header
         else:
-            headers = {'Access-Control-Allow-Origin': '*',
-                       'Proxy-Authenticate': 'Basic realm="%s"' % self.auth_info,
-                       'Content-Length': '0',
-                       'Connection': 'keep-alive'}
+            headers = {'Access-Control-Allow-Origin': '*', 'Proxy-Authenticate': 'Basic realm="%s"' % self.auth_info, 'Content-Length': '0', 'Connection': 'keep-alive'}
             return 'mock', {'status': 407, 'headers': headers, 'body': ''}
 
 
 class UserAgentFilter(BaseProxyHandlerFilter):
     """user agent filter"""
+
     def __init__(self, user_agent):
         self.user_agent = user_agent
 
@@ -1275,6 +1287,7 @@ class UserAgentFilter(BaseProxyHandlerFilter):
 
 class ForceHttpsFilter(BaseProxyHandlerFilter):
     """force https filter"""
+
     def __init__(self, forcehttps_sites, noforcehttps_sites):
         self.forcehttps_sites = tuple(forcehttps_sites)
         self.noforcehttps_sites = set(noforcehttps_sites)
@@ -1289,6 +1302,7 @@ class ForceHttpsFilter(BaseProxyHandlerFilter):
 
 class FakeHttpsFilter(BaseProxyHandlerFilter):
     """fake https filter"""
+
     def __init__(self, fakehttps_sites, nofakehttps_sites):
         self.fakehttps_sites = tuple(fakehttps_sites)
         self.nofakehttps_sites = set(nofakehttps_sites)
@@ -1301,6 +1315,7 @@ class FakeHttpsFilter(BaseProxyHandlerFilter):
 
 class CRLFSitesFilter(BaseProxyHandlerFilter):
     """crlf sites filter"""
+
     def __init__(self, crlf_sites, nocrlf_sites):
         self.crlf_sites = tuple(crlf_sites)
         self.nocrlf_sites = set(nocrlf_sites)
@@ -1315,6 +1330,7 @@ class CRLFSitesFilter(BaseProxyHandlerFilter):
 
 class URLRewriteFilter(BaseProxyHandlerFilter):
     """url rewrite filter"""
+
     def __init__(self, urlrewrite_map, forcehttps_sites, noforcehttps_sites):
         self.urlrewrite_map = {}
         for regex, repl in urlrewrite_map.items():
@@ -1344,7 +1360,7 @@ class URLRewriteFilter(BaseProxyHandlerFilter):
 
     def filter_redirect(self, handler, mo, repl):
         for i, g in enumerate(mo.groups()):
-            repl = repl.replace('$%d' % (i+1), urllib.unquote_plus(g))
+            repl = repl.replace('$%d' % (i + 1), urllib.unquote_plus(g))
         if repl.startswith('http://') and self.forcehttps_sites:
             hostname = urlparse.urlsplit(repl).hostname
             if hostname.endswith(self.forcehttps_sites) and hostname not in self.noforcehttps_sites:
@@ -1377,6 +1393,7 @@ class URLRewriteFilter(BaseProxyHandlerFilter):
 
 class AutoRangeFilter(BaseProxyHandlerFilter):
     """auto range filter"""
+
     def __init__(self, hosts_patterns, endswith_exts, noendswith_exts, maxsize):
         self.hosts_match = [re.compile(fnmatch.translate(h)).match for h in hosts_patterns]
         self.endswith_exts = tuple(endswith_exts)
@@ -1391,13 +1408,13 @@ class AutoRangeFilter(BaseProxyHandlerFilter):
         if handler.command != 'HEAD' and handler.headers.get('Range'):
             m = re.search(r'bytes=(\d+)-', handler.headers['Range'])
             start = int(m.group(1) if m else 0)
-            handler.headers['Range'] = 'bytes=%d-%d' % (start, start+self.maxsize-1)
+            handler.headers['Range'] = 'bytes=%d-%d' % (start, start + self.maxsize - 1)
             logging.info('autorange range=%r match url=%r', handler.headers['Range'], handler.path)
         elif need_autorange:
             logging.info('Found [autorange]endswith match url=%r', handler.path)
             m = re.search(r'bytes=(\d+)-', handler.headers.get('Range', ''))
             start = int(m.group(1) if m else 0)
-            handler.headers['Range'] = 'bytes=%d-%d' % (start, start+self.maxsize-1)
+            handler.headers['Range'] = 'bytes=%d-%d' % (start, start + self.maxsize - 1)
 
 
 class StaticFileFilter(BaseProxyHandlerFilter):
@@ -1467,9 +1484,7 @@ class BlackholeFilter(BaseProxyHandlerFilter):
         if handler.command == 'CONNECT':
             return 'strip', {}
         elif handler.path.startswith(('http://', 'https://')):
-            headers = {'Cache-Control': 'max-age=86400',
-                       'Expires': 'Oct, 01 Aug 2100 00:00:00 GMT',
-                       'Connection': 'close'}
+            headers = {'Cache-Control': 'max-age=86400', 'Expires': 'Oct, 01 Aug 2100 00:00:00 GMT', 'Connection': 'close'}
             content = ''
             if urlparse.urlsplit(handler.path).path.lower().endswith(('.jpg', '.gif', '.png', '.jpeg', '.bmp')):
                 headers['Content-Type'] = 'image/gif'
@@ -1481,15 +1496,7 @@ class BlackholeFilter(BaseProxyHandlerFilter):
 
 class Net2(object):
     """getaliasbyname/gethostsbyname/create_tcp_connection/create_ssl_connection/create_http_request"""
-    skip_headers = frozenset(['Vary',
-                              'Via',
-                              'X-Forwarded-For',
-                              'Proxy-Authorization',
-                              'Proxy-Connection',
-                              'Upgrade',
-                              'X-Chrome-Variations',
-                              'Connection',
-                              'Cache-Control'])
+    skip_headers = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization', 'Proxy-Connection', 'Upgrade', 'X-Chrome-Variations', 'Connection', 'Cache-Control'])
 
     def getaliasbyname(self, name):
         return None
@@ -1534,7 +1541,8 @@ class Net2(object):
 
 class AdvancedNet2(Net2):
     """getaliasbyname/gethostsbyname/create_tcp_connection/create_ssl_connection/create_http_request"""
-    def __init__(self, window=4, connect_timeout=6, timeout=8, ssl_version='TLSv1', dns_servers=['8.8.8.8', '114.114.114.114'], dns_blacklist=[], dns_cachesize=64*1024):
+
+    def __init__(self, window=4, connect_timeout=6, timeout=8, ssl_version='TLSv1', dns_servers=['8.8.8.8', '114.114.114.114'], dns_blacklist=[], dns_cachesize=64 * 1024):
         self.max_window = window
         self.connect_timeout = connect_timeout
         self.timeout = timeout
@@ -1615,6 +1623,7 @@ class AdvancedNet2(Net2):
     def create_tcp_connection(self, hostname, port, timeout, **kwargs):
         client_hello = kwargs.get('client_hello', None)
         cache_key = kwargs.get('cache_key', '') if not client_hello else ''
+
         def create_connection(ipaddr, timeout, queobj):
             sock = None
             sock = None
@@ -1626,7 +1635,7 @@ class AdvancedNet2(Net2):
                 # set struct linger{l_onoff=1,l_linger=0} to avoid 10048 socket error
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
                 # resize socket recv buffer 8K->32K to improve browser releated application performance
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32*1024)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024)
                 # disable negal algorithm to send http request quickly.
                 sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, True)
                 # set a short timeout to trigger timeout retry more quickly.
@@ -1648,7 +1657,7 @@ class AdvancedNet2(Net2):
                     else:
                         data = sock.recv(4096, socket.MSG_PEEK)
                     if not data:
-                        logging.debug('create_tcp_connection %r with client_hello return NULL byte, continue %r', ipaddr, time.time()-start_time)
+                        logging.debug('create_tcp_connection %r with client_hello return NULL byte, continue %r', ipaddr, time.time() - start_time)
                         raise socket.timeout('timed out')
                     # record TCP connection time with client hello
                     self.tcp_connection_time_with_clienthello[ipaddr] = time.time() - start_time
@@ -1674,6 +1683,7 @@ class AdvancedNet2(Net2):
                 # close ssl socket
                 if sock:
                     sock.close()
+
         def close_connection(count, queobj, first_tcp_time):
             for _ in range(count):
                 sock = queobj.get()
@@ -1690,6 +1700,7 @@ class AdvancedNet2(Net2):
                         cache_queue.put((time.time(), sock))
                     else:
                         sock.close()
+
         def reorg_ipaddrs():
             current_time = time.time()
             for ipaddr, ctime in self.tcp_connection_good_ipaddrs.items():
@@ -1701,6 +1712,7 @@ class AdvancedNet2(Net2):
                     self.tcp_connection_bad_ipaddrs.pop(ipaddr, None)
                     self.tcp_connection_unknown_ipaddrs[ipaddr] = ctime
             logging.info("tcp good_ipaddrs=%d, bad_ipaddrs=%d, unknown_ipaddrs=%d", len(self.tcp_connection_good_ipaddrs), len(self.tcp_connection_bad_ipaddrs), len(self.tcp_connection_unknown_ipaddrs))
+
         try:
             while cache_key:
                 ctime, sock = self.tcp_connection_cache[cache_key].get_nowait()
@@ -1711,14 +1723,14 @@ class AdvancedNet2(Net2):
         except Queue.Empty:
             pass
         addresses = [(x, port) for x in self.iplist_alias.get(self.getaliasbyname('%s:%d' % (hostname, port))) or self.gethostsbyname(hostname)]
-        #logging.info('gethostsbyname(%r) return %d addresses', hostname, len(addresses))
+        # logging.info('gethostsbyname(%r) return %d addresses', hostname, len(addresses))
         sock = None
         for i in range(kwargs.get('max_retry', 4)):
             reorg_ipaddrs()
             window = self.max_window + i
             if len(self.ssl_connection_good_ipaddrs) > len(self.ssl_connection_bad_ipaddrs):
-                window = max(2, window-2)
-            if len(self.tcp_connection_bad_ipaddrs)/2 >= len(self.tcp_connection_good_ipaddrs) <= 1.5 * window:
+                window = max(2, window - 2)
+            if len(self.tcp_connection_bad_ipaddrs) / 2 >= len(self.tcp_connection_good_ipaddrs) <= 1.5 * window:
                 window += 2
             good_ipaddrs = [x for x in addresses if x in self.tcp_connection_good_ipaddrs]
             good_ipaddrs = sorted(good_ipaddrs, key=self.tcp_connection_time.get)[:window]
@@ -1738,7 +1750,7 @@ class AdvancedNet2(Net2):
             for i in range(len(addrs)):
                 sock = queobj.get()
                 if hasattr(sock, 'getpeername'):
-                    spawn_later(0.01, close_connection, len(addrs)-i-1, queobj, getattr(sock, 'tcp_time') or self.tcp_connection_time[sock.getpeername()])
+                    spawn_later(0.01, close_connection, len(addrs) - i - 1, queobj, getattr(sock, 'tcp_time') or self.tcp_connection_time[sock.getpeername()])
                     return sock
                 elif i == 0:
                     # only output first error
@@ -1750,6 +1762,7 @@ class AdvancedNet2(Net2):
         cache_key = kwargs.get('cache_key', '')
         validate = kwargs.get('validate')
         headfirst = kwargs.get('headfirst')
+
         def create_connection(ipaddr, timeout, queobj):
             sock = None
             ssl_sock = None
@@ -1761,7 +1774,7 @@ class AdvancedNet2(Net2):
                 # set struct linger{l_onoff=1,l_linger=0} to avoid 10048 socket error
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
                 # resize socket recv buffer 8K->32K to improve browser releated application performance
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32*1024)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024)
                 # disable negal algorithm to send http request quickly.
                 sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, True)
                 # set a short timeout to trigger timeout retry more quickly.
@@ -1844,6 +1857,7 @@ class AdvancedNet2(Net2):
                 # close tcp socket
                 if sock:
                     sock.close()
+
         def create_connection_withopenssl(ipaddr, timeout, queobj):
             sock = None
             ssl_sock = None
@@ -1851,8 +1865,8 @@ class AdvancedNet2(Net2):
             NetworkError = (socket.error, OpenSSL.SSL.Error, OSError)
             if gevent and (ipaddr[0] not in self.fixed_iplist):
                 NetworkError += (gevent.Timeout,)
-                #timer = gevent.Timeout(timeout)
-                #timer.start()
+                # timer = gevent.Timeout(timeout)
+                # timer.start()
             try:
                 # create a ipv4/ipv6 socket object
                 sock = socket.socket(socket.AF_INET if ':' not in ipaddr[0] else socket.AF_INET6)
@@ -1861,7 +1875,7 @@ class AdvancedNet2(Net2):
                 # set struct linger{l_onoff=1,l_linger=0} to avoid 10048 socket error
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
                 # resize socket recv buffer 8K->32K to improve browser releated application performance
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32*1024)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024)
                 # disable negal algorithm to send http request quickly.
                 sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, True)
                 # set a short timeout to trigger timeout retry more quickly.
@@ -1944,6 +1958,7 @@ class AdvancedNet2(Net2):
             finally:
                 if timer:
                     timer.cancel()
+
         def close_connection(count, queobj, first_tcp_time, first_ssl_time):
             for _ in range(count):
                 sock = queobj.get()
@@ -1960,6 +1975,7 @@ class AdvancedNet2(Net2):
                         cache_queue.put((time.time(), sock))
                     else:
                         sock.close()
+
         def reorg_ipaddrs():
             current_time = time.time()
             for ipaddr, ctime in self.ssl_connection_good_ipaddrs.items():
@@ -1971,6 +1987,7 @@ class AdvancedNet2(Net2):
                     self.ssl_connection_bad_ipaddrs.pop(ipaddr, None)
                     self.ssl_connection_unknown_ipaddrs[ipaddr] = ctime
             logging.info("ssl good_ipaddrs=%d, bad_ipaddrs=%d, unknown_ipaddrs=%d", len(self.ssl_connection_good_ipaddrs), len(self.ssl_connection_bad_ipaddrs), len(self.ssl_connection_unknown_ipaddrs))
+
         try:
             while cache_key:
                 ctime, sock = self.ssl_connection_cache[cache_key].get_nowait()
@@ -1981,7 +1998,7 @@ class AdvancedNet2(Net2):
         except Queue.Empty:
             pass
         addresses = [(x, port) for x in self.iplist_alias.get(self.getaliasbyname('%s:%d' % (hostname, port))) or self.gethostsbyname(hostname)]
-        #logging.info('gethostsbyname(%r) return %d addresses', hostname, len(addresses))
+        # logging.info('gethostsbyname(%r) return %d addresses', hostname, len(addresses))
         sock = None
         for i in range(kwargs.get('max_retry', 4)):
             reorg_ipaddrs()
@@ -1994,23 +2011,23 @@ class AdvancedNet2(Net2):
                 addrs = good_ipaddrs[:window]
                 addrs += [random.choice(unknown_ipaddrs)] if unknown_ipaddrs else []
             elif len(good_ipaddrs) > 2 * window or len(bad_ipaddrs) < 0.5 * len(good_ipaddrs):
-                addrs = (good_ipaddrs[:window] + unknown_ipaddrs + bad_ipaddrs)[:2*window]
+                addrs = (good_ipaddrs[:window] + unknown_ipaddrs + bad_ipaddrs)[:2 * window]
             else:
                 addrs = good_ipaddrs[:window] + unknown_ipaddrs[:window] + bad_ipaddrs[:window]
-                addrs += random.sample(addresses, min(len(addresses), 3*window-len(addrs))) if len(addrs) < 3*window else []
+                addrs += random.sample(addresses, min(len(addresses), 3 * window - len(addrs))) if len(addrs) < 3 * window else []
             logging.debug('%s good_ipaddrs=%d, unknown_ipaddrs=%r, bad_ipaddrs=%r', cache_key, len(good_ipaddrs), len(unknown_ipaddrs), len(bad_ipaddrs))
             queobj = Queue.Queue()
             for addr in addrs:
-                #if sys.platform != 'win32':
-                    # Workaround for CPU 100% issue under MacOSX/Linux
-                    thread.start_new_thread(create_connection, (addr, timeout, queobj))
-                #else:
+                # if sys.platform != 'win32':
+                # Workaround for CPU 100% issue under MacOSX/Linux
+                thread.start_new_thread(create_connection, (addr, timeout, queobj))
+                # else:
                 #    thread.start_new_thread(create_connection_withopenssl, (addr, timeout, queobj))
             errors = []
             for i in range(len(addrs)):
                 sock = queobj.get()
                 if hasattr(sock, 'getpeername'):
-                    spawn_later(0.01, close_connection, len(addrs)-i-1, queobj, sock.tcp_time, sock.ssl_time)
+                    spawn_later(0.01, close_connection, len(addrs) - i - 1, queobj, sock.tcp_time, sock.ssl_time)
                     return sock
                 else:
                     errors.append(sock)
@@ -2165,6 +2182,7 @@ class AdvancedNet2(Net2):
 
 class ProxyNet2(AdvancedNet2):
     """Proxy Connection Mixin"""
+
     def __init__(self, proxy_host, proxy_port, proxy_username='', proxy_password=''):
         super(ProxyNet2, self).__init__()
         self.proxy_host = proxy_host
@@ -2204,16 +2222,14 @@ class ProxyNet2(AdvancedNet2):
 class SimpleProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     """Simple Proxy Handler"""
 
-    bufsize = 256*1024
+    bufsize = 256 * 1024
     protocol_version = 'HTTP/1.1'
     ssl_version = ssl.PROTOCOL_SSLv23
     disable_transport_ssl = True
     scheme = 'http'
     first_run_lock = threading.Lock()
     handler_filters = [SimpleProxyHandlerFilter()]
-    handler_plugins = {'direct': DirectFetchPlugin(),
-                       'mock': MockFetchPlugin(),
-                       'strip': StripPlugin(),}
+    handler_plugins = {'direct': DirectFetchPlugin(), 'mock': MockFetchPlugin(), 'strip': StripPlugin(), }
     net2 = Net2()
 
     def finish(self):
