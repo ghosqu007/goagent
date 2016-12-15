@@ -310,7 +310,7 @@ class CertUtility(object):
                     begin = b'-----BEGIN CERTIFICATE-----'
                     end = b'-----END CERTIFICATE-----'
                     certdata = base64.b64decode(b''.join(certdata[certdata.find(begin) + len(begin):certdata.find(end)].strip().splitlines()))
-                crypt32 = ctypes.WinDLL(b'crypt32.dll'.decode())
+                crypt32 = ctypes.WinDLL('crypt32.dll')
                 store_handle = crypt32.CertOpenStore(10, 0, 0, 0x4000 | 0x20000, b'ROOT'.decode())
                 if not store_handle:
                     return -1
@@ -353,7 +353,7 @@ class CertUtility(object):
         class CERT_CONTEXT(ctypes.Structure):
             _fields_ = [('dwCertEncodingType', ctypes.wintypes.DWORD), ('pbCertEncoded', ctypes.POINTER(ctypes.wintypes.BYTE)), ('cbCertEncoded', ctypes.wintypes.DWORD), ('pCertInfo', ctypes.c_void_p), ('hCertStore', ctypes.c_void_p), ]
 
-        crypt32 = ctypes.WinDLL(b'crypt32.dll'.decode())
+        crypt32 = ctypes.WinDLL('crypt32.dll')
         store_handle = crypt32.CertOpenStore(10, 0, 0, 0x4000 | 0x20000, b'ROOT'.decode())
         pCertCtx = crypt32.CertEnumCertificatesInStore(store_handle, None)
         while pCertCtx:
